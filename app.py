@@ -1,4 +1,3 @@
-# app.py – ChefGPT via Groq
 import os, json
 import streamlit as st
 from dotenv import load_dotenv
@@ -46,18 +45,19 @@ def build_prompt(query: str) -> str:
         constraints.append("Include rough calories & macros.")
 
     schema = """
-Return ONLY a JSON array. Each recipe must match:
-{
-  "title": str,
-  "summary": str,
-  "servings": int,
-  "time_minutes": int,
-  "ingredients": [str, ...],
-  "steps": [str, ...],
-  "tags": [str, ...],
-  "nutrition": {"calories": int, "protein_g": int, "carbs_g": int, "fat_g": int}
-}
-"""
+    Return ONLY a JSON array. Each recipe must match:
+    {
+    "title": str,
+    "summary": str,
+    "servings": int,
+    "time_minutes": int,
+    "ingredients": [str, ...],
+    "steps": [str, ...],
+    "tags": [str, ...],
+    "nutrition": {"calories": int, "protein_g": int, "carbs_g": int, "fat_g": int}
+    }
+    """
+    
     parts = [
         f"Create {num_recipes} recipes for: {query}.",
         "Prefer common ingredients and realistic steps.",
