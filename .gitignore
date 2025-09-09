@@ -9,6 +9,7 @@ __pycache__/
 
 # Streamlit cache
 .streamlit/
+!.streamlit/config.toml
 
 # OS cruft
 .DS_Store
