@@ -4,100 +4,19 @@ import streamlit as st
 from dotenv import load_dotenv
 from groq import Groq
 
-# ------- setup -------
-load_dotenv()
-st.set_page_config(page_title="ChefGPT", page_icon="🍳", layout="centered")
+#---helper functions---
+def clear_input():
+    """
+    this function resets the state when "clear" is pressed
+    this meanings clearing:
+        - search bar
+        - recipes
+        - and turns the surprise me mode into false
+    """
+    st.session_state.query = ""
+    st.session_state.run_suggest = False
+    st.session_state.recipes = []  # clear any stored recipes
 
-st.markdown("""
-<style>
-:root { --accent:#7C5CFF; --card:#171A24; --muted:#9aa0aa; }
-div.block-container { padding-top: 2.2rem; max-width: 880px; }
-.sidebar .sidebar-content { padding-top: 1rem !important; }
-
-h1, .stMarkdown h1 { letter-spacing:.3px; }
-.stButton>button {
-  border-radius:12px; padding:.6rem 1rem; font-weight:600;
-  border:1px solid rgba(255,255,255,.1);
-}
-.stButton>button:hover { border-color: var(--accent); box-shadow:0 0 0 3px rgba(124,92,255,.25); }
-
-.card {
-  background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
-  border:1px solid rgba(255,255,255,.08); border-radius:16px;
-  padding: 16px 18px; margin: 14px 0; box-shadow:0 10px 24px rgba(0,0,0,.18);
-}
-.card h3 { margin: 0 0 6px 0; }
-.meta { color: var(--muted); font-size:.92rem; margin-bottom:.4rem; }
-.kv { display:flex; gap:14px; margin:.3rem 0 0.7rem 0; }
-.kv span { background:#10131a; border:1px solid rgba(255,255,255,.07); padding:.28rem .55rem; border-radius:10px; font-size:.85rem; }
-.tags { margin-top:.35rem; }
-.tag {
-  display:inline-block; padding:.22rem .55rem; margin:.18rem .25rem 0 0;
-  border:1px solid rgba(255,255,255,.1); border-radius:999px; font-size:.8rem; color:#CBD0D9;
-}
-h4 { margin:.8rem 0 .4rem 0; }
-.step { margin:.18rem 0; line-height:1.5; }
-.smallmuted { color: var(--muted); font-size:.86rem; }
-.hr { height:1px; background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent); margin:10px 0; }
-</style>
-""", unsafe_allow_html=True)
-
-
-st.title("ChefGPT 🍳")
-
-left, right = st.columns([0.75, 0.25], vertical_alignment="center")
-with left:
-    st.caption("Tell me a cuisine or list your ingredients. I’ll suggest tailored recipes.")
-with right:
-    if st.button("🎲 Surprise me", use_container_width=True):
-        # set a surprise query and trigger recipe generation
-        st.session_state.query = "chef’s choice quick dinner, 20 minutes, budget"
-        st.session_state.run_suggest = True
-        st.rerun()
-
-
-api_key = os.getenv("GROQ_API_KEY")
-if not api_key:
-    st.error("Missing GROQ_API_KEY. Add it to your .env or environment.")
-client = Groq(api_key=api_key)
-
-# ------- sidebar controls -------
-with st.sidebar:
-    st.header("Preferences")
-    st.caption("Tune your results. ChefGPT adapts to your pantry & time.")
-    num_recipes = st.slider("How many recipes?", 1, 5, 3)
-    servings = st.slider("Servings", 1, 8, 2)
-    time_cap = st.selectbox("Max cook time", ["no limit", "15 min", "30 min", "45 min", "60 min"])
-    diets = st.multiselect("Dietary preferences", ["vegetarian","vegan","pescatarian","gluten-free","dairy-free","nut-free","halal","kosher","low-carb"])
-    show_macros = st.toggle("Include approximate nutrition/macros", value=True)
-    st.markdown('<div class="hr"></div><span class="smallmuted">Tip: add “budget” or “air fryer” to your prompt.</span>', unsafe_allow_html=True)
-
-# === input card ===
-user_input = st.text_input(
-    "Your cravings or pantry items",
-    key="query",  # single source of truth
-    placeholder="e.g., chinese // chicken, brussel sprouts, mushrooms, spinach",
-    label_visibility="collapsed",
-)
-
-
-cta1, cta2 = st.columns([1,1])
-with cta1:
-    btn = st.button("🍽️ Suggest recipes", use_container_width=True, type="primary")
-with cta2:
-    clear = st.button("🧹 Clear", use_container_width=True)
-
-if clear:
-    st.session_state.query = ""               # reset the input reliably
-    st.rerun()
-
-
-st.markdown('</div>', unsafe_allow_html=True)  # this now matches the opening
-
-
-
-
-# ------- helpers -------
 def build_prompt(query: str) -> str:
     constraints = []
     if diets:
@@ -109,20 +28,20 @@ def build_prompt(query: str) -> str:
         constraints.append("Include rough calories & macros.")
 
     schema = """
-Return ONLY a JSON array. Do not include markdown, backticks, comments, or text before/after the JSON.
-Each element must match:
-{
-  "title": str,
-  "summary": str,
-  "servings": int,
-  "time_minutes": int,
-  "ingredients": [str, ...],
-  "steps": [str, ...],
-  "tags": [str, ...],
-  "nutrition": {"calories": int, "protein_g": int, "carbs_g": int, "fat_g": int}
-}
-If you cannot produce valid JSON, return [].
-""".strip()
+    Return ONLY a JSON array. Do not include markdown, backticks, comments, or text before/after the JSON.
+    Each element must match:
+    {
+    "title": str,
+    "summary": str,
+    "servings": int,
+    "time_minutes": int,
+    "ingredients": [str, ...],
+    "steps": [str, ...],
+    "tags": [str, ...],
+    "nutrition": {"calories": int, "protein_g": int, "carbs_g": int, "fat_g": int}
+    }
+    If you cannot produce valid JSON, return [].
+    """.strip()
 
     parts = [
         "You are ChefGPT. You output only machine-readable JSON as specified.",
@@ -134,7 +53,6 @@ If you cannot produce valid JSON, return [].
         parts.append("Constraints: " + " | ".join(constraints))
     parts.append("Your first character must be '[' and your last character must be ']'.")
     return "\n".join(parts)
-
 
 
 def _extract_json(text: str):
@@ -151,7 +69,7 @@ def _extract_json(text: str):
     starts = [m.start() for m in re.finditer(r"[\[\{]", text)]
     for s in starts:
         chunk = text[s:]
-        # try progressively shorter chunks
+        # trying progressively shorter chunks
         for e in range(len(chunk), max(len(chunk) - 8000, 200), -1):
             cand = chunk[:e].strip()
             if not (cand.endswith("]") or cand.endswith("}")):
@@ -229,6 +147,102 @@ def render_recipe(r: dict):
         )
     st.markdown('</div>', unsafe_allow_html=True)
 
+# ------- setup -------
+load_dotenv() #api key
+st.set_page_config(page_title="ChefGPT", page_icon="🍳", layout="centered")
+
+# --- initialize session state ---
+if "query" not in st.session_state:
+    st.session_state.query = ""
+if "run_suggest" not in st.session_state:
+    st.session_state.run_suggest = False
+if "recipes" not in st.session_state:
+    st.session_state.recipes = []
+
+#CSS for streamlit elements
+st.markdown("""
+<style>
+:root { --accent:#7C5CFF; --card:#171A24; --muted:#9aa0aa; }
+div.block-container { padding-top: 2.2rem; max-width: 880px; }
+.sidebar .sidebar-content { padding-top: 1rem !important; }
+
+h1, .stMarkdown h1 { letter-spacing:.3px; }
+.stButton>button {
+  border-radius:12px; padding:.6rem 1rem; font-weight:600;
+  border:1px solid rgba(255,255,255,.1);
+}
+.stButton>button:hover { border-color: var(--accent); box-shadow:0 0 0 3px rgba(124,92,255,.25); }
+
+.card {
+  background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+  border:1px solid rgba(255,255,255,.08); border-radius:16px;
+  padding: 16px 18px; margin: 14px 0; box-shadow:0 10px 24px rgba(0,0,0,.18);
+}
+.card h3 { margin: 0 0 6px 0; }
+.meta { color: var(--muted); font-size:.92rem; margin-bottom:.4rem; }
+.kv { display:flex; gap:14px; margin:.3rem 0 0.7rem 0; }
+.kv span { background:#10131a; border:1px solid rgba(255,255,255,.07); padding:.28rem .55rem; border-radius:10px; font-size:.85rem; }
+.tags { margin-top:.35rem; }
+.tag {
+  display:inline-block; padding:.22rem .55rem; margin:.18rem .25rem 0 0;
+  border:1px solid rgba(255,255,255,.1); border-radius:999px; font-size:.8rem; color:#CBD0D9;
+}
+h4 { margin:.8rem 0 .4rem 0; }
+.step { margin:.18rem 0; line-height:1.5; }
+.smallmuted { color: var(--muted); font-size:.86rem; }
+.hr { height:1px; background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent); margin:10px 0; }
+</style>
+""", unsafe_allow_html=True)
+
+# --------application code --------
+st.title("ChefGPT")
+
+left, right = st.columns([0.75, 0.25], vertical_alignment="center")
+
+with left:
+    st.caption("Tell me a cuisine or list your ingredients. I’ll suggest tailored recipes.")
+with right:
+    if st.button("Surprise me", use_container_width=True):
+        # set a surprise query and trigger recipe generation
+        st.session_state.query = "chef’s choice quick dinner, 20 minutes, budget"
+        st.session_state.run_suggest = True
+        st.rerun()
+
+
+api_key = os.getenv("GROQ_API_KEY")
+
+if not api_key:
+    st.error("Missing GROQ_API_KEY. Add it to your .env or environment.")
+client = Groq(api_key=api_key)
+
+# ------- sidebar controls -------
+with st.sidebar:
+    st.header("Preferences")
+    st.caption("Tune your results. ChefGPT adapts to your pantry & time.")
+    num_recipes = st.slider("How many recipes?", 1, 5, 3)
+    servings = st.slider("Servings", 1, 8, 2)
+    time_cap = st.selectbox("Max cook time", ["no limit", "15 min", "30 min", "45 min", "60 min"])
+    diets = st.multiselect("Dietary preferences", ["vegetarian","vegan","pescatarian","gluten-free","dairy-free","nut-free","halal","kosher","low-carb"])
+    show_macros = st.toggle("Include approximate nutrition/macros", value=True)
+    st.markdown('<div class="hr"></div><span class="smallmuted">Tip: add “budget” or “air fryer” to your prompt.</span>', unsafe_allow_html=True)
+
+# === input card ===
+user_input = st.text_input(
+    "Your cravings or pantry items",
+    key = "query",  # single source of truth
+    placeholder = "e.g., chinese, italian // chicken, brussel sprouts, mushrooms, spinach",
+    label_visibility = "collapsed",
+)
+
+
+cta1, cta2 = st.columns([1,1])
+with cta1:
+    btn = st.button("Suggest recipes", use_container_width=True, type="primary")
+with cta2:
+    clear = st.button("Clear", use_container_width=True, on_click=clear_input)
+
+
+st.markdown('</div>', unsafe_allow_html=True)  # this now matches the opening
 
 
 # ------- action -------
@@ -241,7 +255,7 @@ if btn or st.session_state.get("run_suggest"):
         st.warning("Please enter a cuisine or some ingredients.")
     else:
         with placeholder.container():
-            st.info("👩‍🍳 Preheating the pan… generating ideas...")
+            st.info("👩Preheating the pan… generating ideas...")
 
         try:
             recipes = call_groq(build_prompt(user_input))
@@ -250,10 +264,9 @@ if btn or st.session_state.get("run_suggest"):
             recipes = []
         else:
             placeholder.empty()
-            if not recipes:
-                st.warning("I couldn’t parse recipe ideas this time. Try again.")
-            else:
-                for r in recipes:
+            st.session_state.recipes = recipes 
+            if st.session_state.recipes:
+                for r in st.session_state.recipes:
                     render_recipe(r)
                     st.divider()
 
